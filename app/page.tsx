@@ -1,21 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
   const [query, setQuery] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [results, setResults] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
 
-  async function handleSearch() {
-    if (!query.trim()) return
+  // Fetch suggestions as user types
+  useEffect(() => {
+    if (query.length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/suggestions?name=${encodeURIComponent(query)}`)
+        const data = await res.json()
+        setSuggestions(data)
+        setShowSuggestions(data.length > 0)
+      } catch {
+        setSuggestions([])
+      }
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [query])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  async function handleSearch(name?: string) {
+    const searchTerm = name || query
+    if (!searchTerm.trim()) return
+    setQuery(searchTerm)
+    setShowSuggestions(false)
     setLoading(true)
     setError(null)
     setResults(null)
 
     try {
-      const res = await fetch(`/api/players?name=${encodeURIComponent(query)}`)
+      const res = await fetch(`/api/players?name=${encodeURIComponent(searchTerm)}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Something went wrong')
       setResults(data)
@@ -99,6 +136,11 @@ export default function Home() {
           align-items: center;
         }
 
+        .search-wrapper {
+          position: relative;
+          width: 360px;
+        }
+
         .search-input {
           background: #13131f;
           border: 1px solid #2a2a3e;
@@ -106,13 +148,37 @@ export default function Home() {
           font-family: 'Barlow', sans-serif;
           font-size: 1rem;
           padding: 0.85rem 1.25rem;
-          width: 360px;
+          width: 100%;
           outline: none;
           transition: border-color 0.2s;
         }
 
         .search-input::placeholder { color: #3a3a55; }
         .search-input:focus { border-color: #f97316; }
+
+        .suggestions {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: #13131f;
+          border: 1px solid #2a2a3e;
+          border-top: none;
+          z-index: 100;
+          max-height: 240px;
+          overflow-y: auto;
+        }
+
+        .suggestion-item {
+          padding: 0.7rem 1.25rem;
+          font-size: 0.9rem;
+          cursor: pointer;
+          border-bottom: 1px solid #1a1a2a;
+          transition: background 0.1s;
+        }
+
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: #1e1e2e; color: #f97316; }
 
         .search-btn {
           background: #f97316;
@@ -126,6 +192,7 @@ export default function Home() {
           padding: 0.85rem 1.75rem;
           cursor: pointer;
           transition: background 0.2s;
+          white-space: nowrap;
         }
 
         .search-btn:hover { background: #fb923c; }
@@ -225,7 +292,7 @@ export default function Home() {
         @media (max-width: 640px) {
           .stats-grid { grid-template-columns: 1fr; }
           .stat-category { border-right: none; }
-          .search-input { width: 100%; }
+          .search-wrapper { width: 100%; }
           .search-row { flex-direction: column; align-items: stretch; }
         }
       `}</style>
@@ -241,15 +308,27 @@ export default function Home() {
         <div className="search-section">
           <span className="search-label">Search Players</span>
           <div className="search-row">
-            <input
-              className="search-input"
-              type="text"
-              placeholder="Enter player name..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button className="search-btn" onClick={handleSearch} disabled={loading}>
+            <div className="search-wrapper" ref={searchRef}>
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Enter player name..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              />
+              {showSuggestions && (
+                <div className="suggestions">
+                  {suggestions.map((name, i) => (
+                    <div key={i} className="suggestion-item" onMouseDown={() => handleSearch(name)}>
+                      {name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className="search-btn" onClick={() => handleSearch()} disabled={loading}>
               {loading ? 'Searching...' : 'Search'}
             </button>
           </div>
