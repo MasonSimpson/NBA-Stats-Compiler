@@ -26,44 +26,261 @@ export default function Home() {
     }
   }
 
+  const statCategories: Record<string, string[]> = {
+    'Basic Info': ['player_name', 'team_abbreviation', 'age', 'player_height_inches', 'player_weight', 'college', 'country', 'draft_year', 'draft_round', 'draft_number'],
+    'Performance': ['gp', 'w', 'l', 'w_pct', 'min', 'pts', 'reb', 'ast', 'stl', 'blk', 'tov', 'plus_minus'],
+    'Shooting': ['fgm', 'fga', 'fg_pct', 'fg3m', 'fg3a', 'fg3_pct', 'ftm', 'fta', 'ft_pct', 'efg_pct', 'ts_pct_y'],
+    'Advanced': ['off_rating', 'def_rating', 'net_rating_y', 'ast_pct_y', 'usg_pct_y', 'pie', 'pace', 'oreb_pct_y', 'dreb_pct_y', 'reb_pct'],
+  }
+
   return (
-    <main style={{ padding: '2rem', fontFamily: 'monospace' }}>
-      <h1>NBA Stats Search</h1>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap');
 
-      <div style={{ marginBottom: '1rem' }}>
-        <input
-          type="text"
-          placeholder="Enter player name..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          style={{ padding: '0.5rem', width: '300px', marginRight: '0.5rem' }}
-        />
-        <button onClick={handleSearch} style={{ padding: '0.5rem 1rem' }}>
-          Search
-        </button>
-      </div>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+        body {
+          background: #0a0a0f;
+          color: #e8e8f0;
+          font-family: 'Barlow', sans-serif;
+          min-height: 100vh;
+        }
 
-      {results && results.length === 0 && <p>No players found.</p>}
+        .header {
+          border-bottom: 1px solid #1e1e2e;
+          padding: 1.5rem 2rem;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
 
-      {results && results.length > 0 && results.map((player, i) => (
-        <div key={i} style={{ border: '1px solid #ccc', padding: '1rem', marginBottom: '1rem' }}>
-          <h2>{player.PLAYER_NAME}</h2>
-          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <tbody>
-              {Object.entries(player).map(([key, value]) => (
-                <tr key={key}>
-                  <td style={{ border: '1px solid #ccc', padding: '4px 8px', fontWeight: 'bold', width: '200px' }}>{key}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '4px 8px' }}>{String(value)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        .header-logo {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 1.6rem;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: #f97316;
+        }
+
+        .header-sub {
+          font-size: 0.75rem;
+          color: #555570;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-top: 2px;
+        }
+
+        .main {
+          max-width: 1100px;
+          margin: 0 auto;
+          padding: 3rem 2rem;
+        }
+
+        .search-section {
+          margin-bottom: 3rem;
+        }
+
+        .search-label {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: #555570;
+          margin-bottom: 0.75rem;
+          display: block;
+        }
+
+        .search-row {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+        }
+
+        .search-input {
+          background: #13131f;
+          border: 1px solid #2a2a3e;
+          color: #e8e8f0;
+          font-family: 'Barlow', sans-serif;
+          font-size: 1rem;
+          padding: 0.85rem 1.25rem;
+          width: 360px;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+
+        .search-input::placeholder { color: #3a3a55; }
+        .search-input:focus { border-color: #f97316; }
+
+        .search-btn {
+          background: #f97316;
+          border: none;
+          color: #0a0a0f;
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 0.85rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 0.85rem 1.75rem;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .search-btn:hover { background: #fb923c; }
+        .search-btn:disabled { background: #3a3a55; cursor: not-allowed; }
+
+        .status {
+          font-size: 0.9rem;
+          color: #555570;
+          padding: 1rem 0;
+        }
+
+        .error {
+          color: #ef4444;
+          font-size: 0.9rem;
+          padding: 1rem 0;
+        }
+
+        .player-card {
+          background: #13131f;
+          border: 1px solid #1e1e2e;
+          margin-bottom: 2rem;
+        }
+
+        .player-header {
+          padding: 1.5rem 2rem;
+          border-bottom: 1px solid #1e1e2e;
+          display: flex;
+          align-items: baseline;
+          gap: 1rem;
+        }
+
+        .player-name {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 2rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          color: #fff;
+        }
+
+        .player-team {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 1rem;
+          font-weight: 600;
+          color: #f97316;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stat-category {
+          border-right: 1px solid #1e1e2e;
+          border-bottom: 1px solid #1e1e2e;
+          padding: 1.5rem 2rem;
+        }
+
+        .stat-category:nth-child(even) { border-right: none; }
+
+        .category-title {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 0.65rem;
+          font-weight: 700;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #f97316;
+          margin-bottom: 1rem;
+        }
+
+        .stat-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.35rem 0;
+          border-bottom: 1px solid #1a1a2a;
+        }
+
+        .stat-row:last-child { border-bottom: none; }
+
+        .stat-key {
+          font-size: 0.78rem;
+          color: #666680;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #e8e8f0;
+        }
+
+        @media (max-width: 640px) {
+          .stats-grid { grid-template-columns: 1fr; }
+          .stat-category { border-right: none; }
+          .search-input { width: 100%; }
+          .search-row { flex-direction: column; align-items: stretch; }
+        }
+      `}</style>
+
+      <header className="header">
+        <div>
+          <div className="header-logo">NBA Stats</div>
+          <div className="header-sub">2023–24 Season</div>
         </div>
-      ))}
-    </main>
+      </header>
+
+      <main className="main">
+        <div className="search-section">
+          <span className="search-label">Search Players</span>
+          <div className="search-row">
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Enter player name..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button className="search-btn" onClick={handleSearch} disabled={loading}>
+              {loading ? 'Searching...' : 'Search'}
+            </button>
+          </div>
+        </div>
+
+        {error && <p className="error">Error: {error}</p>}
+        {results && results.length === 0 && <p className="status">No players found.</p>}
+
+        {results && results.map((player, i) => (
+          <div key={i} className="player-card">
+            <div className="player-header">
+              <span className="player-name">{player.player_name}</span>
+              <span className="player-team">{player.team_abbreviation}</span>
+            </div>
+
+            <div className="stats-grid">
+              {Object.entries(statCategories).map(([category, keys]) => (
+                <div key={category} className="stat-category">
+                  <div className="category-title">{category}</div>
+                  {keys.map((key) => player[key] !== undefined && player[key] !== null && (
+                    <div key={key} className="stat-row">
+                      <span className="stat-key">{key.replace(/_/g, ' ')}</span>
+                      <span className="stat-value">{typeof player[key] === 'number' && !Number.isInteger(player[key]) ? player[key].toFixed(2) : String(player[key])}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </main>
+    </>
   )
 }
